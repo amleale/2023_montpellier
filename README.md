@@ -6,7 +6,7 @@ Experiment with yeast diversity in wine fermentation and establishment of B. bru
 - META_cyto.xlsx
 - cyto_v8.R
 
-# plate counts: abdundance of total yeast, B. bruxellensis, L. plantarum 
+# plate counts: total yeast, B. bruxellensis, L. plantarum 
 - plate_counts.xlsx
 - plate_counts_v4.R
 
