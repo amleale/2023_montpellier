@@ -1,9 +1,10 @@
-## from v6: 
-# making heatplots of absence/presence frequency 
-# 
+## working on in v6: 
+# making heatplots of absence/presence frequency DONE
+# Fisher's exact tests DONE for individual plates
+# why p-value = 1.00 sometimes?
+# Delphine suggestion: Fisher's tests for freq. communities with presence/absence [Alanna decided not to do]
 
 # still from v5:
-# 13-dec-2023  trying to do fishers exact test
 # 19-dec-2023 trying binomial regression when remove C09 (only one with richness =4)
 
 setwd("~/Library/CloudStorage/OneDrive-WageningenUniversity&Research/2023_montpellier/experiments/data/plate_counts")
@@ -83,15 +84,115 @@ cfus2 <- cfus %>%
   mutate(CFU = ifelse(count == 0 & Dilution < 0.1, NA, CFU))
 
 
-# cfus$CFU[is.na(cfus$count)& cfus$media == "plant"] <- 0
-# cfus$CFU[is.na(cfus$count)& cfus$media == "brett"] <- 0
+#### HEATMAPS OF ABSENCE/PRESENCE #### 
+# need to filter, make each plot seprate before combining! #
+binary <- cfus2 %>%  
+  mutate(present = ifelse(CFU > 0, 1, 0)) %>% # turn CFU counts into binary
+  filter(!is.na(present)) %>% # remove if NAs,
+  filter(community != "C01") %>% # remove control of only Sc
+  filter(community != "C10") # remove control of only Bb and Lt
 
-# make separate for plotting /
+binary_freq <- binary %>%
+  group_by(community, day, media, Sc) %>%
+  summarise(
+    Mean_Value = mean(present)
+  )
+
+# total YEAST
+plotA <- binary_freq %>%
+  filter(media == "yeast") %>%
+  ggplot(aes(y = community, x = day, fill = Mean_Value)) +
+  geom_tile(colour = "grey") +
+  scale_fill_gradient(low = "white", high = "purple4", name = "non-empty plate proportion") +
+  labs(title = "viable resident yeast", y = "Community") +
+  theme_bw(base_size = 14) +
+  theme(legend.position = "none")
+
+# B.BRUX
+plotB <- binary_freq %>%
+  filter(media == "brett") %>%
+  ggplot(aes(y = community, x = day, fill = Mean_Value)) +
+  geom_tile(colour = "grey") +
+  scale_fill_gradient(low = "white", high = "purple4", name = "proportion non-empty plates",
+                      labels = scales::number_format(accuracy = 0.1),
+                      breaks = c(0, 0.5, 1)) +
+  labs(title = expression(italic("B. bruxellensis")), y = "") +
+  theme_bw(base_size = 14) +
+  theme(legend.position = "bottom")
+
+# L.PLANT
+plotC <- binary_freq %>%
+  filter(media == "plant") %>%
+  ggplot(aes(y = community, x = day, fill = Mean_Value)) +
+  geom_tile(colour = "grey") +
+  scale_fill_gradient(low = "white", high = "purple4", name = "proportion non-empty plates") +
+  labs(title = expression(italic("L. plantarum")), y = "") + 
+  theme_bw(base_size = 14) +
+  theme(legend.position = "none")
+
+
+# Combine plots (good size = 8 x 14 in) Figure 3
+combined_plots <- plotA + plotB + plotC + plot_layout(ncol = 3)
+combined_plots
+
+
+# finding minimum non-empty proportion
+minmax_prop <- binary_freq %>%
+  filter(media == "brett") %>%
+  filter(Sc != "yes")%>%
+  filter(day == "d21") 
+min(minmax_prop$Mean_Value)
+
+
+#### FISHERS EXACT TEST #######
+# (need to do separate for media x day x species)
+binary <- cfus2 %>%
+  mutate(present = ifelse(CFU > 0, "yes", "no")) %>% # turn CFU counts into binary
+  filter(!is.na(present)) %>% # remove if NAs,
+  filter(day == "d14") %>% #### PROBLEM - can't work work everything is absent/all present (so not at d00, d07)
+  filter(media == "yeast") %>% # filter for selective media type
+  filter(community != "C01") %>% # remove control of only Sc
+  filter(community != "C10") 
+# %>%# remove control of only Bb and Lt
+  # filter(Sc == "yes") # if performing tests only on Sc-free communities (i.e., avoid confounding effect of richness & Sc)
+
+#for species effects 
+binary2 <- binary %>% 
+  # select(present, richness)
+  # select(present, Sc)
+  # select(present, Lt)
+  select(present, Td)
+  # select(present, Sb)
+
+table(binary2)
+
+# Fisher's exact test with raw data
+test <- fisher.test(table(binary2))
+test 
+
+# combine plot and statistical test with ggbarstats to visualise contingency table
+library(ggstatsplot)
+ggbarstats(
+  binary2, present, 
+  # Sc,
+  # Lt,
+  Td,
+  # Sb,
+  # richness,
+  results.subtitle = FALSE,
+  subtitle = paste0(
+    "Fisher's exact test", ", p-value = ",
+    ifelse(test$p.value < 0.001, "< 0.001", round(test$p.value, 3))
+  )
+)
+
+
+##### DOT PLOTS - supplementary figures ######
+# make separate for plotting 
 yeast <- filter(cfus2, media == "yeast")
 plant <- filter(cfus2, media == "plant")
 brett <- filter(cfus2, media == "brett")
 
-##### DOT PLOTS ######
 yeast %>%
   # filter(community != "C10" ) %>%
   # filter(community != "C08" ) %>%
@@ -106,7 +207,7 @@ yeast %>%
     values = c("skyblue", "deepskyblue2","deepskyblue3","deepskyblue4"),
     breaks = c("r01","r02","r03","r04"),
     labels = c("1","2","3","4")
-    ) +
+  ) +
   geom_hline(yintercept = 10^6, linetype='dashed', col = 'grey', linewidth = 0.75) +
   # geom_hline(yintercept = log10(10^8), linetype='dashed', col = 'turquoise', linewidth = 1) +
   # ggtitle("total yeast") +
@@ -130,13 +231,13 @@ plant %>%
   # geom_boxplot() +
   geom_jitter(aes(col = round, 
                   # shape = method
-                  ), 
-              width = 0.2) +
+  ), 
+  width = 0.2) +
   scale_colour_manual(
     values = c("violetred", "violetred2","violetred3", "violetred4"),
     breaks = c("r01","r02","r03","r04"),
     labels = c("1","2","3","4")
-    )+
+  )+
   geom_hline(yintercept = 10^3, linetype='dashed', col = 'grey', linewidth = 0.75) +
   # ggtitle("L. plantarum") +
   theme_bw() +
@@ -161,7 +262,7 @@ brett %>%
   scale_colour_manual(values = c("lightgreen","green2", "green3","green4"),
                       breaks = c("r01","r02","r03","r04"),
                       labels = c("1","2","3","4")
-                      )+
+  )+
   geom_hline(yintercept = 10^3, linetype='dashed', col = 'grey', linewidth = 0.75) +
   # ggtitle('B. bruxellensis') +
   theme_bw() +
@@ -173,149 +274,18 @@ brett %>%
   labs(color = "replicate", shape = "lawn?", y = "CFU/mL") 
 
 
-#### HEATMAPS OF ABSENCE/PRESENCE #### 
-binary <- cfus2 %>%  
-  mutate(present = ifelse(CFU > 0, 1, 0)) %>% # turn CFU counts into binary
-  filter(!is.na(present)) %>% # remove if NAs,
-  # filter(media == "yeast") %>% # filter for selective media type
-  # filter(media == "brett") %>% # filter for selective media type
-  filter(media == "plant") %>% # filter for selective media type
-  filter(community != "C01") %>% # remove control of only Sc
-  filter(community != "C10") # remove control of only Bb and Lt
-
-binary_freq <- binary %>%
-  group_by(community, day) %>%
-  summarise(
-    Mean_Value = mean(present)
-  )
-
-# for total YEAST
-plotA <- ggplot(binary_freq, 
-       aes(y = community, x = day, fill = Mean_Value)) +
-  geom_tile(colour = "grey") +
-  scale_fill_gradient(low = "white", high = "black", name = "proportion non-empty plates") +
-  labs(title = "viable resident yeast", y = "Community") +
-  theme_bw(base_size = 14) +
-  theme(legend.position = "none")
-
-
-# for B.BRUX
-plotB <- ggplot(binary_freq, 
-       aes(y = community, x = day, fill = Mean_Value)) +
-  geom_tile(colour = "grey") +
-  scale_fill_gradient(low = "white", high = "black", name = "proportion non-empty plates",
-                      labels = scales::number_format(accuracy = 0.1),
-                      breaks = c(0, 0.5, 1)) +
-  labs(title = expression(italic("B. bruxellensis")), y = "") +
-  theme_bw(base_size = 14) +
-  theme(legend.position = "bottom")
-
-
-# for L.PLANT
-plotC <- ggplot(binary_freq, 
-                aes(y = community, x = day, fill = Mean_Value)) +
-  geom_tile(colour = "grey") +
-  scale_fill_gradient(low = "white", high = "black", name = "proportion non-empty plates") +
-  labs(title = expression(italic("L. plantarum")), y = "") + 
-  theme_bw(base_size = 14) +
-  theme(legend.position = "none")
-
-
-# Combine plots (good size = 8 x 14 in)
-combined_plots <- plotA + plotB + plotC + plot_layout(ncol = 3)
-combined_plots
-
-
-#### FISHERS EXACT TEST #######
-# (need to do separate for media x day x species)
-binary <- cfus2 %>%
-  mutate(present = ifelse(CFU > 0, "yes", "no")) %>% # turn CFU counts into binary
-  filter(!is.na(present)) %>% # remove if NAs,
-  filter(day == "d21") %>% #### PROBLEM - can't work work everything is absent/all present (so not at d00, d07)
-  filter(media == "yeast") %>% # filter for selective media type
-  filter(community != "C01") %>% # remove control of only Sc
-  filter(community != "C10") %>%# remove control of only Bb and Lt
-  filter(Sc != "yes") # if performing tests only on Sc-free communities (i.e., avoid confounding effect of richness & Sc)
-
-#for species effects 
-binary2 <- binary %>%  #[issue with Td effect on Bb at d14, d21]
-  # select(present, richness)
-  # select(present, Sc)
-  # select(present, Lt)
-  # select(present, Td)
-  select(present, Sb)
-
-table(binary2)
-
-# Fisher's exact test with raw data
-test <- fisher.test(table(binary2))
-test 
-
-# combine plot and statistical test with ggbarstats
-library(ggstatsplot)
-ggbarstats(
-  binary2, present, 
-  # Sc,
-  Lt,
-  # Td,
-  # Sb,
-  # richness,
-  results.subtitle = FALSE,
-  subtitle = paste0(
-    "Fisher's exact test", ", p-value = ",
-    ifelse(test$p.value < 0.001, "< 0.001", round(test$p.value, 3))
-  )
-)
-
-
-#Different visualisation in ggplot
-contingency_table <- table(
-  # binary$Sc,
-  # binary$Lt, 
-  # binary$Td, 
-  # binary$Sb, 
-  binary$richness, 
-  binary$present)
-
-# Convert the contingency table to a data frame
-df <- as.data.frame(as.table(contingency_table))
-# new_colnames <- c("S.bacillarus", "present", "Freq")  # Replace with your desired names
-new_colnames <- c("S.cerevisiae", "present", "Freq")  # Replace with your desired names
-# new_colnames <- c("T.delbreuckii", "present", "Freq")  # Replace with your desired names
-# new_colnames <- c("L.thermotolerans", "present", "Freq")  # Replace with your desired names
-# new_colnames <- c("richness", "present", "Freq")  # Replace with your desired names
-colnames(df) <- new_colnames
-
-# Create a mosaic plot using ggplot2
-ggplot(df, 
-       # aes(x = S.bacillarus, y = present, fill = Freq)
-       aes(x = S.cerevisiae, y = present, fill = Freq)
-       # aes(x = T.delbreuckii, y = present, fill = Freq)
-       # aes(x = L.thermotolerans, y = present, fill = Freq)
-       # aes(x = richness, y = present, fill = Freq)
-       ) +
-  geom_tile(color = "white", size = 0.5) +
-  geom_text(aes(label = Freq), vjust = 1.5) +
-  # scale_fill_gradient(low = "lightblue", high = "darkblue") +
-  scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
-  # scale_fill_gradient(low = "lightpink", high = "deeppink") +
-  theme_minimal() +
-  labs(title = "B. bruxellensis, day 14", x = "S.cerevisiae", y = "present")
 
 
 
 
 
-
-
-
-## alanna playing around 19-dec-2023
+## alanna playing around 19-dec-2023 to make glmm for binary data....
 #confirm data you want to use 
 binary2 <- cfus2 %>%
   mutate(present = ifelse(CFU > 0, 1, 0)) %>% # turn CFU counts into binary
   filter(!is.na(present)) %>% # remove if NAs,
   filter(media == "brett") %>%
-  filter(day != "d00") %>% # brett only polymorph at day07, 14, 21
+  filter(day != "d21") %>% # brett only polymorph at day07, 14, 21
   # filter(media == "plant") %>%
   # filter(day == "d07") %>% # plantarum only polymorph at day07
   # filter(media == "yeast") %>%
@@ -324,14 +294,16 @@ binary2 <- cfus2 %>%
   filter(community != "C10") # remove control of only Bb and Lt
 
 
-# # Fit the GLMM using glmmTMB
-model <- glm(present ~ Sc, data = binary2, family = binomial) # need to incorporate random effect of round
-summary(model) # no effect of Sc on brett??? that doesn't seem right. 
+# # Fit the GLMM using glmmTMB ( # need to incorporate random effect of round??)
+model <- glm(present ~ Sc, data = binary2, family = binomial) 
+# currently shows no effect of Sc on Brett presence at day 21...which doesn't seem right
+summary(model) 
 
-model <- glm(present ~ Sc + day, data = binary2, family = binomial) # need to incorporate random effect of round
+
+
+# if multiple days included
+model <- glm(present ~ Sc + as.factor(day), data = binary2, family = binomial) 
 summary(model)
-
-
 
 
 # model <- glm(present ~ Sc + (1|round), data = binary2, family = binomial) # random effect of round not working 
@@ -348,9 +320,37 @@ summary(model)
 
 
 
-# check differences between exponential vs. normal counts
-
-
-
-
+# #Different visualisation in ggplot
+# contingency_table <- table(
+#   # binary$Sc,
+#   # binary$Lt, 
+#   # binary$Td, 
+#   # binary$Sb, 
+#   binary$richness, 
+#   binary$present)
+# 
+# # Convert the contingency table to a data frame
+# df <- as.data.frame(as.table(contingency_table))
+# # new_colnames <- c("S.bacillarus", "present", "Freq")  # Replace with your desired names
+# new_colnames <- c("S.cerevisiae", "present", "Freq")  # Replace with your desired names
+# # new_colnames <- c("T.delbreuckii", "present", "Freq")  # Replace with your desired names
+# # new_colnames <- c("L.thermotolerans", "present", "Freq")  # Replace with your desired names
+# # new_colnames <- c("richness", "present", "Freq")  # Replace with your desired names
+# colnames(df) <- new_colnames
+# 
+# # Create a mosaic plot using ggplot2
+# ggplot(df, 
+#        # aes(x = S.bacillarus, y = present, fill = Freq)
+#        aes(x = S.cerevisiae, y = present, fill = Freq)
+#        # aes(x = T.delbreuckii, y = present, fill = Freq)
+#        # aes(x = L.thermotolerans, y = present, fill = Freq)
+#        # aes(x = richness, y = present, fill = Freq)
+# ) +
+#   geom_tile(color = "white", size = 0.5) +
+#   geom_text(aes(label = Freq), vjust = 1.5) +
+#   # scale_fill_gradient(low = "lightblue", high = "darkblue") +
+#   scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
+#   # scale_fill_gradient(low = "lightpink", high = "deeppink") +
+#   theme_minimal() +
+#   labs(title = "B. bruxellensis, day 14", x = "S.cerevisiae", y = "present")
 

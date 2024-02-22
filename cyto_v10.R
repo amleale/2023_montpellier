@@ -1,6 +1,8 @@
 # v10: started february-2024
 # TO DO:
-# work on fig.5 of max CFU reached - order by richness, make colour for Sc present 
+# work on fig.5 of max CFU reached - order by richness, make colour for Sc present DONE!
+# ANOVAs on max CFUs  (15 feb 2024) DONE!
+# PROBLEM: why Sb causing problems for ANOVAs of max CFU/mL? 
 
 
 ##############################################################################################################
@@ -13,13 +15,16 @@ library(car) # for ANOVAs
 library(lme4) # for ANOVAs
 library(vegan) #for posthoc 
 library(emmeans) #for posthoc
+library(patchwork)#for combining plots
+library(ggpubr) # for t-test p-values on plots
+
 
 # Loading and transforming data #####
-# remember to rename top of columns in excel file
+# remember to rename top of columns in excel file (DONE)
 setwd("~/Library/CloudStorage/OneDrive-WageningenUniversity&Research/2023_montpellier/experiments/data/cytometer")
 # setwd("/Users/thibault/Google Drive/Boulot/Projets/Projet Alanna")
 
-# until line 160 is data import
+# until script line 160 is data import
 #round 1 import
 day00.1 <- readxl::read_xlsx(path="cytometer_raw_EXCEL.xlsx", sheet = "r1_d00") 
 day00.1 <- day00.1 %>%
@@ -147,20 +152,18 @@ day21.4 <- day21.4 %>%
   mutate(day = "d21") %>%
   mutate(round = "r04")
 
-
+# combine all dataframes together
 mydata <- rbind(day00.1, day01.1, day02.1, day07.1, day14.1, day21.1, 
                 day00.2, day01.2, day02.2, day07.2, day14.2, day21.2,
                 day00.3, day01.3, day02.3, day07.3, day14.3, day21.3,
                 day00.4, day01.4, day02.4, day07.4, day14.4, day21.4 )
 
 
-# transformation of the tab
+# transformation of the table
 vec <- which(!is.na(mydata$parameter1))
 for(i in 1:(length(vec))){
-  
   val1 <- vec[i]
   val2 <- (vec[i+1])-1
-  
   
   if(i == length(vec)){
     mydata$parameter1[val1:nrow(mydata)] <- mydata$parameter1[val1]
@@ -214,7 +217,6 @@ myclean <- mytidy %>%
   filter(Sample != "Sample") %>%
   filter(Group != "NA") %>% 
   select(-c("Group", "Workspace", "Autogate Status" ))#check that it is all "Group" workspace 
-
 
 #renaming things
 myclean <- myclean %>% 
@@ -366,17 +368,14 @@ noise_Sb <- my_Sb_population %>% filter(Sample=="PBS+IP")
 noise_Td <- my_Td_population %>% filter(Sample=="PBS+IP")
 noise_Lt <- my_Lt_population %>% filter(Sample=="PBS+IP") #can see noise is in the Lt gate...
 
-
-
-# check that tables actually made
+# check that tables were actually made
 table(my_live_population$Sample, my_live_population$day)
 table(my_Sc_population$Sample,my_Sc_population$day)
 table(my_Sb_population$Sample,my_Sb_population$day)
 table(my_Lt_population$Sample,my_Lt_population$day)
 table(my_Td_population$Sample,my_Td_population$day)
 
-
-# Fusionner les tableaux [FUSED dataframe]
+# Fusionner les tableaux 
 TOTAL <- my_Total_population  %>% select(day, Sample, round, Count, Total_Concentration)
 LIVE <- my_live_population  %>% select(day, Sample, round, Live_Count, Live_Concentration)
 SC <- my_Sc_population  %>% select(day, Sample, round, Sc_Count, Sc_Concentration)
@@ -398,11 +397,10 @@ fused <- fused %>%
   mutate(Td_prop = Td_Concentration/Live_Concentration) %>%
   mutate(percent_alive = Live_Concentration/Total_Concentration*100)
 
-# wrong <- fused %>% filter(percent_alive >=100) # check that there's 0 cases where live_concentration > total_concentration
+wrong <- fused %>% filter(percent_alive >=100) # check that there's 0 cases where live_concentration > total_concentration
 
 
-#### Loading the dataset of dilutions 
-# also includes consortia compositions (yes/no for Sc, Lt, Td, Sb), and species richness (1,2,3,4)
+#### Loading the META dataset of dilution factor, species compositions, species richness
 mydilutions <- readxl::read_xlsx(path="META_cyto.xlsx")  %>%
   pivot_longer(cyto_d00:cyto_d21, names_to = "day", values_to = "dilution") %>% 
   separate(day, c("A", "day")) %>% 
@@ -450,10 +448,11 @@ mylong_conc <- joined %>%
     cols = Sc_Concentration:Td_Concentration,
     values_to = "concentration",
     names_to = "species"
-  )
+  ) %>%
+  mutate(species = factor(species,  #just reorder so Sc first, matches order in other plots
+        levels = c("Sc_Concentration", "Lt_Concentration", "Sb_Concentration", "Td_Concentration"))) 
 
 ##### CONCENTRATIONS PLOTS = fig. 4 (feb. 2024)
-# line graphs
 mylong_conc %>%
   # filter(day > 4) %>%
   filter(Sample != "C01") %>%
@@ -462,30 +461,30 @@ mylong_conc %>%
   summarise_if(is.numeric, c(mean, sd), na.rm = TRUE) %>%
   ggplot(aes(x = day, y = fn1, col = species, group = species)) +
   scale_colour_manual(
-    values = c("chartreuse3", "gold", "deepskyblue", "coral"),
-    breaks = c("Lt_Concentration", "Sb_Concentration", "Sc_Concentration", "Td_Concentration"),
+    values = c("deepskyblue","chartreuse3", "gold",  "coral"),
+    breaks = c("Sc_Concentration","Lt_Concentration", "Sb_Concentration",  "Td_Concentration"),
     labels = list(
+      expression(italic("S. cerevisiae")),
       expression(italic("L. thermotolerans")),
       expression(italic("S. bacillaris")),
-      expression(italic("S. cerevisiae")),
       expression(italic("T. delbreuckii"))
     )
   ) +
   geom_line(size = 0.8) +
   geom_errorbar(aes(ymin = fn1 - fn2, ymax = fn1 + fn2)) +
-  geom_hline(yintercept = 10^6)+
+  geom_hline(yintercept = 10^4)+ # below 10^4 cells is unreliable
   facet_wrap(~Sample, ncol = 5) +
-  theme_bw(base_size = 13) +
+  theme_bw(base_size = 14) +
   # theme(axis.text.x = element_text(angle = 90)) +
   scale_x_continuous(breaks = c(1, 2, 3, 7, 14, 21)) +
-  # scale_y_log10() +
+  scale_y_log10() +
   labs(y = "mean live cells/mL") +
   theme(legend.text = element_text(hjust = -0.1))
 
 
 
 
-#### ANOVA of MAX POPLN SIZE #####
+#### PLOTS of MAX POPLN SIZE #####
 max_conc <- joined %>%
 group_by(Sample, round, Sc, Lt, Td, Sb, richness) %>%
   summarise(max_conc = max(Live_Concentration, na.rm = TRUE) )
@@ -503,7 +502,10 @@ richness_order <- c("C02", "C11", "C12", "C13",
 # reorder by richness
 max_conc$Sample <- factor(max_conc$Sample, levels = richness_order)
 
-# plot fig. 5 (feb 2024)
+# plot fig. 5 (feb 2024): 6x10 good pdf export size
+max_conc <- max_conc %>%
+  mutate(richness_label = paste0("", richness)) # used to label with richenss levels
+
 max_conc %>% 
   ggplot(aes(x = Sample, y = max_conc, color = Sc, fill = Sc)) +
   geom_boxplot() +
@@ -515,12 +517,15 @@ max_conc %>%
     labels = c("absent", "present")) +  # Set the legend labels for color
   labs(y = "max live cells/mL", x = "community", color = "S. cerevisiae?", fill = "S. cerevisiae?") +  # Change both legend titles
   theme_bw(base_size = 14) +
-  theme(legend.title = element_text(face = "italic"))
-        # , axis.text.x = element_text(color = richness_colors))  # Color x-axis labels based on richness
+  theme(legend.title = element_text(face = "italic")) +
+  geom_text(aes(label = richness_label, y = -0.5), vjust = 0, size = 4)  # Plotting richness below x-axis labels
+
 
 # plots for fig. 6 (feb. 2024)
+
 # plot Sc. vs. non.Sc max_conc %>% 
-ggplot(aes(x = Sc, y = max_conc, color=Sc, fill = Sc)) +
+plot1 <- max_conc %>% 
+  ggplot(aes(x = Sc, y = max_conc, color=Sc, fill = Sc)) +
   geom_boxplot() +
   scale_fill_manual(
     values = c("grey90", "skyblue"), 
@@ -528,12 +533,16 @@ ggplot(aes(x = Sc, y = max_conc, color=Sc, fill = Sc)) +
   scale_colour_manual(
     values = c("grey50", "deepskyblue"), 
     labels = c("absent", "present")) +  # Set the legend labels for color
-  labs(y = "max live cells/mL", x = "", color = "S. cerevisiae?", fill = "S. cerevisiae?") +  # Change both legend titles
+  labs(y = "max live cells/mL", x = "", color = "S. cerevisiae?", fill = "S. cerevisiae?", size =20) +  # Change both legend titles
   theme_bw(base_size = 14) +
-  theme(legend.title = element_text(face = "italic"))
+  theme(legend.title = element_text(face = "italic"),
+        legend.position = "bottom",
+        legend.direction = "vertical",
+        axis.text.x = element_blank())  +
+  stat_compare_means(method = "t.test", label = "p.format", size = 5)  # Add p-value comparisons between groups
 
 # plot Td vs. non.Td 
-max_conc %>% 
+plot2 <- max_conc %>% 
   ggplot(aes(x = Td, y = max_conc, color=Td, fill = Td)) +
   geom_boxplot() +
   scale_fill_manual(
@@ -542,12 +551,17 @@ max_conc %>%
   scale_colour_manual(
     values = c("grey50", "coral2"), 
     labels = c("absent", "present")) +  # Set the legend labels for color
-  labs(y = "max live cells/mL", x = "", color = "T. delbrueckii?", fill = "T. delbrueckii?") +  # Change both legend titles
+  labs(y = "", x = "", color = "T. delbrueckii?", fill = "T. delbrueckii?") +  # Change both legend titles
   theme_bw(base_size = 14) +
-  theme(legend.title = element_text(face = "italic"))
+  theme(legend.title = element_text(face = "italic"),
+        legend.position = "bottom",
+        legend.direction = "vertical",
+        axis.text.x = element_blank())  +
+  stat_compare_means(method = "t.test", label = "p.format", size = 5)  # Add p-value comparisons between groups
+
 
 # plot Sb vs. non Sb 
-max_conc %>% 
+plot3 <- max_conc %>% 
   ggplot(aes(x = Sb, y = max_conc, color=Sb, fill = Sb)) +
   geom_boxplot() +
   scale_fill_manual(
@@ -556,12 +570,17 @@ max_conc %>%
   scale_colour_manual(
     values = c("grey50", "gold3"), 
     labels = c("absent", "present")) +  # Set the legend labels for color
-  labs(y = "max live cells/mL", x = "", color = "S. bacillarus?", fill = "S. bacillarus?") +  # Change both legend titles
+  labs(y = "", x = "", color = "S. bacillaris?", fill = "S. bacillaris?") +  # Change both legend titles
   theme_bw(base_size = 14) +
-  theme(legend.title = element_text(face = "italic"))
+  theme(legend.title = element_text(face = "italic"),
+        legend.position = "bottom",
+        legend.direction = "vertical",
+        axis.text.x = element_blank())  +
+  stat_compare_means(method = "t.test", label = "p.format", size = 5)  # Add p-value comparisons between groups
+
 
 # plot Lt vs. non Lt 
-max_conc %>% 
+plot4 <- max_conc %>% 
   ggplot(aes(x = Lt, y = max_conc, color=Lt, fill = Lt)) +
   geom_boxplot() +
   scale_fill_manual(
@@ -570,34 +589,78 @@ max_conc %>%
   scale_colour_manual(
     values = c("grey50", "chartreuse3"), 
     labels = c("absent", "present")) +  # Set the legend labels for color
-  labs(y = "max live cells/mL", x = "", color = "S. bacillarus?", fill = "S. bacillarus?") +  # Change both legend titles
+  labs(y = "", x = "", color = "L. thermotolerans?", fill = "L. thermotolerans?") +  # Change both legend titles
   theme_bw(base_size = 14) +
-  theme(legend.title = element_text(face = "italic"))
+  theme(legend.title = element_text(face = "italic"),
+        legend.position = "bottom",
+        legend.direction = "vertical",
+        axis.text.x = element_blank())  +
+  stat_compare_means(method = "t.test", label = "p.format", size = 5) # Add p-value comparisons between groups
+
+# Combine plots (good size is 6x10 for pdf export)
+combined_plots <- plot1 + plot2 + plot3 + plot4 + plot_layout(ncol = 4)
+combined_plots
 
 
-# no interaction (species identity)
-lm_species <- lm(max_conc ~ Sc + Lt + Td + Sb, data = max_conc) 
-Anova(lm_species, type = 3)  
-summary(lm_species) # all significant except Sb (Sc+, Lt+, Td- )
-# emmeans(lm_species, pairwise ~ Sc|Lt|Td|Sb) 
+#### ANOVAs of max CFUs
 
-
-# # interactions
-# lm_species <- lm(max_conc ~ Sc * Lt * Td * Sb, data = max_conc) 
-# Anova(lm_species, type = 3)  
-# summary(lm_species) # only Sc (+) and Td (-) significant when interactions included
-# # emmeans(lm_species, pairwise ~ Sc|Lt|Td|Sb) 
-
-
-# richness 
-max_conc2 <- max_conc %>% filter(richness != 4)# remove because only 1 pop'ln has 4 species
-lm_rich <- lm(max_conc ~ as.factor(richness) + Sc + Lt + Td + Sc, data = max_conc2) 
+# compare 4 monocultures (Sc = C02, Lt = C11, Sb = C12, Td = C13)
+max_conc2 <- max_conc %>% filter(richness == 1)
+lm_rich <- lm(max_conc ~ Sample, data = max_conc2) 
 Anova(lm_rich, type = 3)  
-summary(lm_rich) # NO significant effect of richness if Sc included
-emmeans(lm_rich, pairwise ~ richness) # richness 1 vs. 3 is significant 
+summary(lm_rich)
+
+# plot maxCFU of monocultures fig. S5
+max_conc2 %>% 
+  ggplot(aes(x = Sample, y = max_conc, colour= Sample)) +
+  geom_jitter(size = 3, width = 0.1) +
+  scale_colour_manual(
+    values = c("deepskyblue","chartreuse3", "gold",  "coral"),
+    labels = list(
+      expression(italic("S. cerevisiae")),
+      expression(italic("L. thermotolerans")),
+      expression(italic("S. bacillaris")),
+      expression(italic("T. delbreuckii"))
+    )) +
+  labs(y = "max live cells/mL", x = "community", fill = "monoculture", colour = "monoculture") +  # Change both legend titles
+  theme_bw(base_size = 14)+
+  stat_compare_means(method = "anova")+      
+  stat_compare_means(label = "p.signif", method = "t.test",
+                     ref.group = "C02")   
+
+
+# all communities 
+max_conc2 <- max_conc 
+# %>% filter(richness != 4) # remove because only 1 pop'ln has 4 species
+
+# richness only, species effects excluded
+lm_rich <- lm(max_conc ~ as.factor(richness), data = max_conc2) 
+Anova(lm_rich, type = 3)  
+summary(lm_rich)
+
+# richness and species effects 
+lm_rich <- lm(max_conc ~ as.factor(richness) + Sc, data = max_conc2) 
+Anova(lm_rich, type = 3)  
+summary(lm_rich) 
+emmeans(lm_rich, pairwise ~ richness) 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+# # for each species alone (i.e., t-test,), use ALL DATA (dataframe "max_conc" not "max_conc2")
+# lm_1species <- lm(max_conc ~  Sb, data = max_conc) 
+# Anova(lm_1species, type = 3)  
+# summary(lm_1species) 
 
 
 # both richness and identity (can't do both....)
@@ -606,6 +669,20 @@ emmeans(lm_rich, pairwise ~ richness) # richness 1 vs. 3 is significant
 # Anova(lm_species_richness, type = 3)  
 # summary(lm_species_richness)
 
+
+# no interaction (species identity)
+# # lm_species <- lm(max_conc ~ richness , data = max_conc) 
+# lm_species <- lm(max_conc ~ richness + Sc, data = max_conc)
+# Anova(lm_species, type = 3)  
+# summary(lm_species) # all significant except Sb (Sc+, Lt+, Td- )
+# # emmeans(lm_species, pairwise ~ Sc|Lt|Td|Sb) 
+
+
+# # interactions
+# lm_species <- lm(max_conc ~ Sc * Lt * Td * Sb, data = max_conc) 
+# Anova(lm_species, type = 3)  
+# summary(lm_species) # only Sc (+) and Td (-) significant when interactions included
+# # emmeans(lm_species, pairwise ~ Sc|Lt|Td|Sb) 
 
 
 # # S. cerevisiae

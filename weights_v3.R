@@ -55,69 +55,96 @@ df %>%
   filter(community != "C10" ) %>%
   group_by(Sc, day, community) %>%
   summarise_at("CO2cum", c(mean, sd), na.rm = TRUE) %>%
-  ggplot(aes(x = day, y = fn1, col = community
-             , linetype=Sc
-             # , linetype=Lt
-             # , linetype=Td
-             )) +
-  geom_line(size=0.8) +
-  geom_errorbar(aes(ymin=fn1-fn2, ymax=fn1+fn2))+
-  # facet_wrap(~community) +
+  ggplot(aes(x = day, y = fn1, col = community, linetype = Sc)) +
+  scale_linetype_manual(
+    name = expression(italic("S. cerevisiae?")),
+    values = c("solid", "dashed"),  
+    labels = c("absent", "present")  
+  ) +
+  geom_line(size = 0.8) +
+  geom_errorbar(aes(ymin = fn1 - fn2, ymax = fn1 + fn2)) +
   theme_bw(base_size = 15) +
-  # geom_hline(yintercept=100, size = 0.4, linetype='dotted') +
-  # theme(axis.text.x = element_text(angle = 90)) +
-  scale_x_continuous(breaks=c(0, 1, 2, 7, 14, 21))+
-  # ggtitle("all 17 communities") +
-  ylab(bquote("cumulative CO"[2]~"(g/L)")) +
-  labs(linetype = expression(italic("S. cerevisiae?"))) 
+  scale_x_continuous(breaks = c(0, 1, 2, 7, 14, 21)) +
+  ylab(bquote("cumulative CO"[2] ~ "(g/L)"))
 
 
-#### plot average of when species is present or not (potential supplementary)
-df %>%
-  filter(community != "C01" ) %>%
-  filter(community != "C10" ) %>%
-  # filter(Sc == "no" ) %>% #if want to just looks at NS
-  group_by(day, Sb) %>%
-  summarise_at("CO2cum", c(mean, sd), na.rm = TRUE) %>%
-  ggplot(aes(x = day, y = fn1, 
-             col = Sb
-  )) +
-  geom_line(size=0.8) +
-  geom_errorbar(aes(ymin=fn1-fn2, ymax=fn1+fn2))+
-  # facet_wrap(~community) +
-  theme_bw(base_size = 15) +
-  geom_hline(yintercept=100, size = 0.4, linetype='dotted') +
-  # theme(axis.text.x = element_text(angle = 90)) +
-  scale_x_continuous(breaks=c(0, 1, 2, 7, 14, 21))+
-  labs(y = "CO2 cumulative", 
-       # title = "non-Sc communities",
-       title = "all 15 communities"
-       ) +
-  ylab(bquote("cumulative CO"[2]~"(g/L)"))
-
-
-
-### SPECIES / IDENTITY effect
+### linear model everything 
 df2 <- df %>% 
   # filter(Sc != "yes" ) %>% #remove if see rank still true in absence of Sc? 
-  filter(richness != 4 ) %>% # need to remove this for richness, because only 1 community, leads to perfect prediction
-  filter(community != "C01" ) %>% #remove just Sc control 
-  filter(community != "C10" ) #remove just Bb and Lp control 
+  # filter(richness != 4 ) %>% # need to remove this for richness, because only 1 community, leads to perfect prediction
+  filter(community != "C01" ) %>% #remove Sc control 
+  filter(community != "C10" ) 
 
-
-# all together 
-lm_all <- lm(CO2cum ~ Sc + Lt + Td + Sb + as.factor(day), data = df2) 
-Anova(lm_all, type = 3)  
+lm_all <- lm(CO2cum ~ Sc + Lt + Td + Sb + as.factor(richness) + day, data = df2) 
+# Anova(lm_all,  type = 3)
 summary(lm_all)
 
 
-### RICHNESS effect
-# removed richness of 4, because only 1 community (leads to perfect prediction)
-lm_rich <- lm(CO2cum ~ as.factor(richness) + as.factor(day), data = df2) 
-Anova(lm_rich, type = 3) # no effect of richness
-summary(lm_rich)
-emmeans(lm_rich, pairwise ~ richness|day) # difference between richness seen at all days
-# emmeans(lm_rich, pairwise ~ day|richness) 
+
+### SPECIES / IDENTITY effect BY DAY
+df2 <- df %>% 
+  # filter(Sc != "yes" ) %>% #remove if see rank still true in absence of Sc? 
+  # filter(richness != 4 ) %>% # need to remove this for richness, because only 1 community, leads to perfect prediction
+  filter(community != "C01" ) %>% #remove Sc control 
+  filter(community != "C10" ) %>%  #remove Bb and Lp control
+  filter(day == 21 )
+
+
+### LINEAR MODEL 
+lm_all <- lm(CO2cum ~ Sc + Lt + Td + Sb + as.factor(richness), data = df2) 
+# Anova(lm_all,  type = 3)
+summary(lm_all)
+
+
+#### PERMANOVA for spread in data????
+# check what you are filtering
+df2 <- df %>% 
+  # filter(Sc != "yes" ) %>% #remove if see rank still true in absence of Sc? 
+  # filter(richness != 4 ) %>% # need to remove this for richness, because only 1 community, leads to perfect prediction
+  filter(community != "C01" ) %>% #remove Sc control 
+  filter(community != "C10" ) 
+
+# # Remove rows with missing values in either 'CO2cum' or 'Sc'
+df_no_missing <- na.omit(df2[c("CO2cum", "Sc")])
+
+# # Calculate beta diversity using Euclidean distance
+beta_diversity <- vegdist(df_no_missing$CO2cum, method = "euclidean")
+
+# # Run PERMANOVA
+result <- adonis2(beta_diversity ~ Sc, data = df_no_missing)
+print(result)
+summary(result)
+
+
+#### Sc communities  (can't use community*day interaction...)
+sacc <- df %>%
+  filter(Sc == "yes" ) %>%
+  filter(community != "C01" ) %>% 
+  filter(community != "C10" ) %>%
+  filter(day == 7 )
+
+lm_sacc <- lm(CO2cum ~ richness, data = sacc )
+Anova(lm_sacc , type = 3)  # no effect of community
+summary(lm_sacc)
+
+
+
+
+
+### these analyses are not currently used. 
+
+
+#### Sc-free communities 
+saccfree <- df %>%
+  filter(Sc == "no" ) %>%
+  filter(community != "C01" ) %>% 
+  filter(community != "C10" ) %>%
+  filter(day == 7 )
+
+lm_saccfree <- lm(CO2cum ~ community, data = saccfree)
+Anova(lm_saccfree , type = 3)  # no effect of community
+summary(lm_saccfree)
+
 
 
 ### LEVENE's test (test spread in data)
@@ -136,42 +163,33 @@ leveneTest(CO2cum ~ Sc, data = day14) #significant
 leveneTest(CO2cum ~ Sc, data = day21) #significant
 
 
-#### PERMANOVA of spread in data???? 
-# check what you are filtering
-# df2 <- df %>% 
-#   # filter(Sc != "yes" ) %>% #remove if see rank still true in absence of Sc? 
-#   # filter(richness != 4 ) %>% # need to remove this for richness, because only 1 community, leads to perfect prediction
-#   filter(community != "C01" ) %>% #remove just Sc control 
-#   filter(community != "C10" ) #remove just Bb and Lp control 
+
+
+
+
 # 
-# # Remove rows with missing values in either 'CO2cum' or 'Sc'
-# df_no_missing <- na.omit(df2[c("CO2cum", "Sc")])
-# 
-# # Calculate beta diversity using Euclidean distance
-# beta_diversity <- vegdist(df_no_missing$CO2cum, method = "euclidean")
-# 
-# # Run PERMANOVA
-# result <- adonis2(beta_diversity ~ Sc, data = df_no_missing)
-# print(result)
-# summary(result)
-
-
-
-
-# ### Sc communities do differ from one another (can't use interaction...)
-# sacc <- df %>% filter(Sc == "yes" )
-# lm_sacc <- lm(CO2cum ~ community + as.factor(day), data = sacc ) 
-# Anova(lm_sacc , type = 3)  # no effect of community
-# 
-# ### NS communities also differ from one another, but lower p-value (can't use interaction...)
-# non_sacc <- df %>% filter(Sc != "yes" )
-# lm_NS <- lm(CO2cum ~ community + as.factor(day), data = NS ) 
-# Anova(lm_NS , type = 3)  # no effect of community
-
-
-
-
-
+# #### plot average of when species is present or not (potential supplementary)
+# df %>%
+#   filter(community != "C01" ) %>%
+#   filter(community != "C10" ) %>%
+#   # filter(Sc == "no" ) %>% #if want to just looks at NS
+#   group_by(day, Sb) %>%
+#   summarise_at("CO2cum", c(mean, sd), na.rm = TRUE) %>%
+#   ggplot(aes(x = day, y = fn1, 
+#              col = Sb
+#   )) +
+#   geom_line(size=0.8) +
+#   geom_errorbar(aes(ymin=fn1-fn2, ymax=fn1+fn2))+
+#   # facet_wrap(~community) +
+#   theme_bw(base_size = 15) +
+#   geom_hline(yintercept=100, size = 0.4, linetype='dotted') +
+#   # theme(axis.text.x = element_text(angle = 90)) +
+#   scale_x_continuous(breaks=c(0, 1, 2, 7, 14, 21))+
+#   labs(y = "CO2 cumulative", 
+#        # title = "non-Sc communities",
+#        title = "all 15 communities"
+#   ) +
+#   ylab(bquote("cumulative CO"[2]~"(g/L)"))
 
 
 
