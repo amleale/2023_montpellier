@@ -144,7 +144,8 @@ minmax_prop <- binary_freq %>%
 min(minmax_prop$Mean_Value)
 
 
-#### FISHERS EXACT TEST #######
+#### FISHERS EXACT TESTS #######
+# used to create Supplementary Tables S1, S2, S3
 # (need to do separate for media x day x species)
 binary <- cfus2 %>%
   mutate(present = ifelse(CFU > 0, "yes", "no")) %>% # turn CFU counts into binary
