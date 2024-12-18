@@ -1,9 +1,4 @@
-# v3: started 20-nov-2023 beginning statistic analyses
-# TO DO:
-# ANOVAs & posthoc Tukey's pairwise 
-# test of spread Sc vs. NS (PERMANOVA)
-
-setwd("~/Library/CloudStorage/OneDrive-WageningenUniversity&Research/2023_montpellier/experiments/data/cumulativeCO2")
+setwd("")
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -13,16 +8,16 @@ library(lme4) # for ANOVAs
 library(vegan) #for posthoc 
 library(emmeans) #for posthoc
 
-r01 <- readxl::read_xlsx(path="fermini_leale.xlsx", sheet = "r1_raw")%>%
+r01 <- readxl::read_xlsx(path="fermini_cumulativeCO2.xlsx", sheet = "r1_raw")%>%
   mutate(round = "r01")
 
-r02 <- readxl::read_xlsx(path="fermini_leale.xlsx", sheet = "r2_raw")%>%
+r02 <- readxl::read_xlsx(path="fermini_cumulativeCO2.xlsx", sheet = "r2_raw")%>%
   mutate(round = "r02")
 
-r03 <- readxl::read_xlsx(path="fermini_leale.xlsx", sheet = "r3_raw")%>%
+r03 <- readxl::read_xlsx(path="fermini_cumulativeCO2.xlsx", sheet = "r3_raw")%>%
   mutate(round = "r03")
 
-r04 <- readxl::read_xlsx(path="fermini_leale.xlsx", sheet = "r4_raw")%>%
+r04 <- readxl::read_xlsx(path="fermini_cumulativeCO2.xlsx", sheet = "r4_raw")%>%
   mutate(round = "r04")
 
 
@@ -46,7 +41,7 @@ df$day <- as.numeric(df$day)
 df$CO2cum <- as.numeric(df$CO2cum)
 
 # combine in meta data of species absence/presence
-META <- readxl::read_xlsx(path="fermini_leale.xlsx", sheet = "META")
+META <- readxl::read_xlsx(path="fermini_cumulativeCO2.xlsx", sheet = "META")
 df <- merge(df, META)
 
 # figure 2  (good pdf size = 6x8 in )

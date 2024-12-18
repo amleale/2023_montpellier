@@ -1,13 +1,4 @@
-## working on in v6: 
-# making heatplots of absence/presence frequency DONE
-# Fisher's exact tests DONE for individual plates
-# why p-value = 1.00 sometimes?
-# Delphine suggestion: Fisher's tests for freq. communities with presence/absence [Alanna decided not to do]
-
-# still from v5:
-# 19-dec-2023 trying binomial regression when remove C09 (only one with richness =4)
-
-setwd("~/Library/CloudStorage/OneDrive-WageningenUniversity&Research/2023_montpellier/experiments/data/plate_counts")
+setwd("")
 library(dplyr)
 library(tidyr)
 library(lme4)
@@ -280,7 +271,7 @@ brett %>%
 
 
 
-## alanna playing around 19-dec-2023 to make glmm for binary data....
+## me playing around 19-dec-2023 to make glmm for binary data....
 #confirm data you want to use 
 binary2 <- cfus2 %>%
   mutate(present = ifelse(CFU > 0, 1, 0)) %>% # turn CFU counts into binary

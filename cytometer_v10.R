@@ -1,9 +1,3 @@
-# v10: started february-2024
-# TO DO:
-# work on fig.5 of max CFU reached - order by richness, make colour for Sc present DONE!
-# ANOVAs on max CFUs  (15 feb 2024) DONE!
-# PROBLEM: why Sb causing problems for ANOVAs of max CFU/mL? 
-
 
 ##############################################################################################################
 library(readxl)
@@ -21,8 +15,7 @@ library(ggpubr) # for t-test p-values on plots
 
 # Loading and transforming data #####
 # remember to rename top of columns in excel file (DONE)
-setwd("~/Library/CloudStorage/OneDrive-WageningenUniversity&Research/2023_montpellier/experiments/data/cytometer")
-# setwd("/Users/thibault/Google Drive/Boulot/Projets/Projet Alanna")
+setwd("")
 
 # until script line 160 is data import
 #round 1 import
@@ -735,7 +728,7 @@ summary(lm_rich)
 
 
 # ############ PROPORTIONS (not good b/c doesn't account for actual cell #s) #######
-# # ALANNA testing things (percent alive for each species)
+# # just testing things (percent alive for each species)
 # mylong_prop <- joined %>%
 #   select(day, Sample, round, Sc_prop, Sb_prop, Lt_prop, Td_prop) %>%
 #   pivot_longer(
