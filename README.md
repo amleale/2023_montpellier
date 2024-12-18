@@ -1,4 +1,6 @@
-# 2023 Institut Agro Montpellier 
+## title: S. cerevisiae serves as keystone species for invasion resistance in synthetic yeast communities!
+
+## 2023 - experiment performed
 Experiment with yeast diversity during wine fermentation of synthetic yeast communities and the establishment of B. bruxellensis or L. plantarum 
 
 # cytometer data
@@ -13,3 +15,5 @@ Experiment with yeast diversity during wine fermentation of synthetic yeast comm
 # cumulativeCO2 / fermentation kinetics
 - fermini_cumulativeCO2.xlsx (includes read.me tab)
 - cumulativeCO2_v3.R
+
+
