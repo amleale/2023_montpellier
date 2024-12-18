@@ -11,5 +11,5 @@ Experiment with yeast diversity during wine fermentation of synthetic yeast comm
 - plate_counts_v6.R
 
 # cumulativeCO2 / fermentation kinetics
-- fermini_cumCO2.xlsx (includes read.me tab)
+- fermini_cumulativeCO2.xlsx (includes read.me tab)
 - cumulativeCO2_v3.R
